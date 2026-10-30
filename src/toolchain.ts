@@ -18,27 +18,55 @@ async function findTool(exec: ExecFn, name: string): Promise<string | undefined>
   return path === '' ? undefined : path;
 }
 
-async function detect(exec: ExecFn): Promise<Toolchain | undefined> {
+export type ToolchainStatus =
+  | { kind: 'ok'; toolchain: Toolchain }
+  | { kind: 'missing' }
+  | { kind: 'outdated'; missing: string[] };
+
+async function detectStatus(exec: ExecFn): Promise<ToolchainStatus> {
   const select = await exec('xcode-select', ['-p']);
-  if (select.code !== 0) return undefined;
+  if (select.code !== 0) return { kind: 'missing' };
   const clang = await findTool(exec, 'clang++');
   const lldbDap = await findTool(exec, 'lldb-dap');
   const clangd = await findTool(exec, 'clangd');
-  if (!clang || !lldbDap || !clangd) return undefined;
   const sdkResult = await exec('xcrun', ['--show-sdk-path']);
-  const sdk = sdkResult.stdout.trim();
-  if (sdkResult.code !== 0 || sdk === '') return undefined;
-  return { clang, lldbDap, clangd, sdk };
+  const sdk = sdkResult.code === 0 ? sdkResult.stdout.trim() : '';
+  const missing = [
+    ...(clang ? [] : ['clang++']),
+    ...(lldbDap ? [] : ['lldb-dap']),
+    ...(clangd ? [] : ['clangd']),
+    ...(sdk !== '' ? [] : ['macOS SDK']),
+  ];
+  if (!clang || !lldbDap || !clangd || sdk === '') return { kind: 'outdated', missing };
+  return { kind: 'ok', toolchain: { clang, lldbDap, clangd, sdk } };
+}
+
+/**
+ * `missing`: Apple's Command Line Tools are not installed (`xcode-select -p` fails).
+ * `outdated`: they are installed but lack some tools (lldb-dap needs Command Line Tools 16 or
+ * later); installing again cannot help, only a macOS / tools update can.
+ */
+export async function detectToolchainStatus(exec: ExecFn): Promise<ToolchainStatus> {
+  try {
+    return await detectStatus(exec);
+  } catch {
+    // A binary that cannot even be started means the tools are not installed.
+    return { kind: 'missing' };
+  }
+}
+
+/** What to tell the student when the installed tools are too old (shown instead of installing). */
+export function outdatedToolsMessage(missing: string[]): string {
+  return (
+    `Your Apple C++ tools are out of date (missing: ${missing.join(', ')}). ` +
+    "Update macOS in System Settings → General → Software Update, then run 'C++: Check Tools'."
+  );
 }
 
 /** Returns the tool paths, or undefined if Apple's Command Line Tools are not fully installed. */
 export async function detectToolchain(exec: ExecFn): Promise<Toolchain | undefined> {
-  try {
-    return await detect(exec);
-  } catch {
-    // A binary that cannot even be started means the tools are not installed.
-    return undefined;
-  }
+  const status = await detectToolchainStatus(exec);
+  return status.kind === 'ok' ? status.toolchain : undefined;
 }
 
 const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));

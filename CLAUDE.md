@@ -22,10 +22,10 @@ The `--configLoader runner` flag is set in the `test:unit` script in `package.js
 Extension for beginner C++ students on macOS: one keypress builds with Apple `clang++` and debugs with Apple `lldb-dap`. Intel is only tested through x86_64 builds under Rosetta (`cppStarter.architecture = "x86_64"`).
 
 - `extension.ts` wires activation. `exec.ts` is the only process layer (`ExecFn`, `realExec` over `execFile`, argument arrays, injectable in tests).
-- `toolchain.ts` / `toolchainUi.ts`: detect clang++, lldb-dap, clangd and the SDK via `xcrun`; one-click `xcode-select --install`; `ensureToolchain()`; "C++: Check Tools".
+- `toolchain.ts` / `toolchainUi.ts`: detect clang++, lldb-dap, clangd and the SDK via `xcrun` (`detectToolchainStatus`: ok / missing / outdated); one-click `xcode-select --install` only when missing (outdated tools get a Software Update message); `ensureToolchain()`; "C++: Check Tools"; `onToolchainFound` lets `extension.ts` configure clangd once the tools first appear.
 - `projectModel.ts`: one program per folder; finds a `.sln` in the file's dir and up to 3 ancestors. `vcxproj.ts` parses `.sln`/`.vcxproj` (fast-xml-parser) for sources, include dirs, defines.
-- `compiler.ts`: builds the clang++ args (`-std=c++17 -g -O0 -isysroot <sdk>`, plus `-include shims/cpp_starter_compat.h`), parses diagnostics, deletes the old exe/dSYM before building. `explain.ts` turns diagnostics into plain English.
-- `runner.ts`: F5 / Ctrl+F5 / build commands and the Problems panel. `debugAdapter.ts`: debug type `cppstarter` mapped to `lldb-dap`. `ui.ts`: status bar, editor toolbar, fn-key tip. `startPage.ts` + `projectTemplate.ts`: Get started webview and new project.
+- `compiler.ts`: builds the clang++ args (`-std=c++17 -g -O0 -isysroot <sdk>`, plus `-include shims/cpp_starter_compat.h`, and links `shims/cpp_starter_compat.cpp` after the student's sources), parses diagnostics, deletes the old exe/dSYM before building. `explain.ts` turns diagnostics into plain English.
+- `runner.ts`: F5 / Ctrl+F5 / build commands and the Problems panel. `debugAdapter.ts`: debug type `cppstarter` mapped to `lldb-dap`, plus a DebugConfigurationProvider that turns VS Code's own F5 / Run menu (focus outside a C++ editor, no launch.json, so the config has no `program`) into the extension's build-then-debug or run flow and returns `undefined`. `ui.ts`: status bar, editor toolbar, fn-key tip. `startPage.ts` + `projectTemplate.ts`: Get started webview and new project.
 - `intellisense.ts` / `intellisenseCore.ts`: sets clangd global settings (tracking which are "ours"), writes a merged `compile_commands.json` next to the `.sln` (symlink-safe, trusted workspaces only).
 
 ### Build then debug flow
@@ -37,15 +37,15 @@ F5 saves files, builds (stale exe/dSYM removed first; a compile error stops here
 lldb-dap's own `runInTerminal` launch is blocked by macOS SIP, so the program is not launched by lldb. Instead:
 
 1. The program is started in a VS Code integrated terminal with env `CPP_STARTER_WAIT_FOR_DEBUGGER=<ready file>`.
-2. The force-included `shims/cpp_starter_compat.h` writes its pid to the ready file and spins (bounded to 60 s) on `extern "C" inline volatile int cpp_starter_debugger_attached`. It is an inline variable defined before any user code, so C++17 initializes it before main or any global initializer.
+2. The force-included `shims/cpp_starter_compat.h` defines an inline variable, before any user code, whose initializer calls `cpp_starter_wait_for_debugger()` in `shims/cpp_starter_compat.cpp`; C++17 initializes it before main or any global initializer. That function writes the pid to the ready file and spins (bounded to 60 s) on `extern "C" volatile int cpp_starter_debugger_attached` (one definition, in the .cpp).
 3. The session uses `launchCommands: ['process attach --pid N', 'expression -- cpp_starter_debugger_attached = 1']`, so lldb attaches only after the program has fully loaded (attaching earlier under Rosetta stops inside dyld) and breakpoints are installed before the program continues.
 
-The same header implements `system("pause"/"pause>nul"/"cls")`, `scanf_s`/`printf_s`/`sprintf_s`/`strcpy_s`, the exit "Press any key to close this window . . ." pause, and restores the terminal on Ctrl+C. `CPP_STARTER_NO_PAUSE=1` disables every wait. `shims/include/` holds `pch.h`, `stdafx.h`, `conio.h`.
+The header and the .cpp together implement `system("pause"/"pause>nul"/"cls")`, `scanf_s`/`printf_s`/`sprintf_s`/`strcpy_s`, the exit "Press any key to close this window . . ." pause, and restores the terminal on Ctrl+C. `CPP_STARTER_NO_PAUSE=1` disables every wait. `shims/include/` holds `pch.h`, `stdafx.h`, `conio.h`.
 
 ## Rules that are not obvious
 
 - Never skip, `.skip`, or loosen the breakpoint tests in `test/integration/debug.test.ts`. They are the only proof the attach handshake works.
-- `shims/cpp_starter_compat.h` must not include system headers that define common macro names (it is force-included into every student file). `test/fixtures/shims/macro_names.cpp` guards this; keep it passing.
+- `shims/cpp_starter_compat.h` may include only C++ standard library headers (it is force-included into every student file); anything POSIX lives in `shims/cpp_starter_compat.cpp`. `test/fixtures/shims/macro_names.cpp` and `posix_names.cpp` guard this; keep them passing. The .cpp calls POSIX functions through `dlsym` on libSystem, because a student global such as `int read` would otherwise take over the shim's `read` at link time.
 - Never write `tasks.json`, `launch.json` or workspace settings into the student's folder. Settings are global and tracked as "ours" (see `intellisense.ts`).
 - Spawn child processes with argument arrays through `exec.ts`, never shell strings (paths contain spaces, `+`, Arabic).
 - Add `repository` to `package.json` when the GitHub repo exists, then drop `--allow-missing-repository` from the `package` script.

@@ -27,6 +27,8 @@ Beginner C++ students on macOS, especially those who learned on Visual Studio in
 
 **Mac keyboards:** the top row usually controls brightness and volume. Hold **fn** and press F5 (fn+F5), or turn on "Use F1, F2, etc. keys as standard function keys" in System Settings, Keyboard.
 
+**F11 (Step into):** macOS uses F11 for Show Desktop, so VS Code never sees it. To free it, open System Settings → Keyboard → Keyboard Shortcuts → Mission Control and uncheck **Show Desktop**.
+
 ## One program per folder
 
 Every folder is one program. All `.cpp` files directly in the folder are built together; files in subfolders are not. Exactly one of those files may contain `main`. If you open a Visual Studio `.sln` or `.vcxproj`, the extension reads the source files, include folders and defines from it, and asks which project to run when there are several.

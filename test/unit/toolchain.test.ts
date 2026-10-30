@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ExecFn, ExecResult } from '../../src/exec';
-import { cachedWhenFound, detectToolchain, installToolchain } from '../../src/toolchain';
+import {
+  cachedWhenFound,
+  detectToolchain,
+  detectToolchainStatus,
+  installToolchain,
+  outdatedToolsMessage,
+} from '../../src/toolchain';
 
 const ok = (stdout = ''): ExecResult => ({ code: 0, stdout, stderr: '' });
 const fail = (code: number): ExecResult => ({ code, stdout: '', stderr: '' });
@@ -57,6 +63,58 @@ describe('detectToolchain', () => {
       throw new Error('spawn ENOENT');
     };
     expect(await detectToolchain(exec)).toBeUndefined();
+  });
+});
+
+describe('detectToolchainStatus', () => {
+  it('is ok with the toolchain when everything is found', async () => {
+    const status = await detectToolchainStatus(fakeExec().exec);
+    expect(status.kind).toBe('ok');
+    expect(status.kind === 'ok' && status.toolchain.lldbDap).toBe('/Library/Developer/CommandLineTools/usr/bin/lldb-dap');
+  });
+
+  it('is missing when xcode-select -p fails', async () => {
+    const { exec, calls } = fakeExec({ 'xcode-select -p': fail(2) });
+    expect(await detectToolchainStatus(exec)).toEqual({ kind: 'missing' });
+    expect(calls.some((c) => c.startsWith('xcrun'))).toBe(false);
+  });
+
+  it('is missing when xcode-select cannot be started', async () => {
+    const exec: ExecFn = async () => {
+      throw new Error('spawn ENOENT');
+    };
+    expect(await detectToolchainStatus(exec)).toEqual({ kind: 'missing' });
+  });
+
+  it('is outdated, naming lldb-dap, when older Command Line Tools lack it', async () => {
+    const { exec } = fakeExec({ 'xcrun -f lldb-dap': fail(1) });
+    expect(await detectToolchainStatus(exec)).toEqual({ kind: 'outdated', missing: ['lldb-dap'] });
+  });
+
+  it('lists every missing tool and the SDK', async () => {
+    const { exec } = fakeExec({
+      'xcrun -f lldb-dap': fail(1),
+      'xcrun -f clangd': ok('\n'),
+      'xcrun --show-sdk-path': fail(1),
+    });
+    expect(await detectToolchainStatus(exec)).toEqual({
+      kind: 'outdated',
+      missing: ['lldb-dap', 'clangd', 'macOS SDK'],
+    });
+  });
+
+  it('never runs the installer', async () => {
+    const { exec, calls } = fakeExec({ 'xcrun -f lldb-dap': fail(1) });
+    await detectToolchainStatus(exec);
+    expect(calls).not.toContain('xcode-select --install');
+  });
+});
+
+describe('outdatedToolsMessage', () => {
+  it('names the missing tools and points to Software Update and Check Tools', () => {
+    expect(outdatedToolsMessage(['lldb-dap'])).toBe(
+      "Your Apple C++ tools are out of date (missing: lldb-dap). Update macOS in System Settings → General → Software Update, then run 'C++: Check Tools'.",
+    );
   });
 });
 

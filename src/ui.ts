@@ -2,7 +2,8 @@ import * as vscode from 'vscode';
 
 export const FN_TIP_KEY = 'cppStarter.fnTipShown';
 const FN_TIP_MESSAGE =
-  'Tip: on a Mac keyboard, hold fn and press F5 to run your program, or set F1, F2… to work as standard function keys.';
+  'Tip: on a Mac keyboard, hold fn and press F5 to run your program, or set F1, F2… to work as standard function keys. ' +
+  'F11 (Step Into) also needs Show Desktop turned off in Keyboard Shortcuts → Mission Control.';
 const OPEN_KEYBOARD_SETTINGS = 'Open Keyboard Settings';
 const KEYBOARD_SETTINGS_URI = 'x-apple.systempreferences:com.apple.Keyboard-Settings.extension';
 
