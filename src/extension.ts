@@ -1,9 +1,11 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { registerDebugAdapter } from './debugAdapter';
+import { configureClangd } from './intellisense';
 import { registerRunner } from './runner';
 import { registerStartPage, showStartPageOnFirstRun } from './startPage';
 import { registerUi } from './ui';
-import { ensureToolchain, recheckToolchain } from './toolchainUi';
+import { ensureToolchain, getOutputChannel, recheckToolchain } from './toolchainUi';
 
 export function activate(context: vscode.ExtensionContext): void {
   if (process.platform !== 'darwin') {
@@ -19,7 +21,15 @@ export function activate(context: vscode.ExtensionContext): void {
   registerUi(context);
   registerStartPage(context);
   ensureToolchain()
-    .then(() => showStartPageOnFirstRun(context))
+    .then(async (toolchain) => {
+      if (toolchain) {
+        // Not awaited: clangd setup must never delay or break activation.
+        configureClangd(toolchain, path.join(context.extensionPath, 'shims'), context.globalState).catch((error) =>
+          getOutputChannel().appendLine(`Could not configure clangd: ${error instanceof Error ? error.message : String(error)}`),
+        );
+      }
+      await showStartPageOnFirstRun(context);
+    })
     .catch(() => undefined);
 }
 

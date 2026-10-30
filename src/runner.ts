@@ -1,9 +1,10 @@
 import { readdir, readFile, rm } from 'fs/promises';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { build, type Arch, type BuildResult, type CompilerDiagnostic } from './compiler';
+import { build, buildArgs, type Arch, type BuildResult, type CompilerDiagnostic } from './compiler';
 import { DEBUG_TYPE } from './debugAdapter';
 import { realExec } from './exec';
+import { writeCompileCommands } from './intellisense';
 import { explain } from './explain';
 import { resolveBuildTarget, type BuildTarget, type ProjectFs } from './projectModel';
 import { ensureToolchain, getOutputChannel } from './toolchainUi';
@@ -94,6 +95,12 @@ export class Runner {
       status.dispose();
     }
     this.publish(target, result.diagnostics);
+    // After every build, failed or not, so IntelliSense works while the student fixes errors.
+    await writeCompileCommands(
+      target,
+      buildArgs(target, result.exe, path.join(this.context.extensionPath, 'shims'), arch, toolchain.sdk),
+      toolchain.clang,
+    );
 
     if (!result.ok) {
       getOutputChannel().appendLine(`Build of ${target.name} failed:\n${result.rawOutput}`);

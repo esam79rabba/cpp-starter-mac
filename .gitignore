@@ -5,3 +5,5 @@ out/
 *.vsix
 .superpowers/
 .claude-flow/
+test/fixtures/solution/compile_commands.json
+test/fixtures/**/.cache/
