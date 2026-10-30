@@ -1,3 +1,4 @@
+import { lstat, readFile, rename, rm, writeFile } from 'fs/promises';
 import { dirname, join } from 'path';
 import { isDeepStrictEqual } from 'util';
 import type { Toolchain } from './toolchain';
@@ -70,3 +71,54 @@ export async function findSlnDir(dir: string, readdir: (d: string) => Promise<st
 }
 
 export const compileCommandsPath = (dir: string): string => join(dir, 'compile_commands.json');
+
+/**
+ * Merges new entries into the existing compile_commands.json text. Existing entries for the
+ * same files are replaced, all others kept; sorted by file so equal content gives equal text.
+ * Unreadable or invalid existing content is ignored.
+ */
+export function mergeCompileCommands(existingText: string | undefined, fresh: CompileCommand[]): string {
+  let kept: CompileCommand[] = [];
+  try {
+    const parsed: unknown = JSON.parse(existingText ?? '');
+    if (Array.isArray(parsed)) {
+      const replaced = new Set(fresh.map((e) => e.file));
+      kept = parsed.filter(
+        (e): e is CompileCommand =>
+          typeof e === 'object' &&
+          e !== null &&
+          typeof (e as CompileCommand).file === 'string' &&
+          typeof (e as CompileCommand).directory === 'string' &&
+          Array.isArray((e as CompileCommand).arguments) &&
+          !replaced.has((e as CompileCommand).file),
+      );
+    }
+  } catch {
+    kept = [];
+  }
+  const all = [...kept, ...fresh].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
+  return JSON.stringify(all, null, 2) + '\n';
+}
+
+export type UpdateResult = 'written' | 'unchanged' | 'refused';
+
+/**
+ * Updates compile_commands.json safely: refuses a symlink or non-regular file at the path,
+ * and replaces the file atomically (temp file in the same directory, then rename).
+ */
+export async function updateCompileCommandsFile(file: string, fresh: CompileCommand[]): Promise<UpdateResult> {
+  const info = await lstat(file).catch(() => undefined);
+  if (info && !info.isFile()) return 'refused';
+  const existing = info ? await readFile(file, 'utf8').catch(() => undefined) : undefined;
+  const text = mergeCompileCommands(existing, fresh);
+  if (text === existing) return 'unchanged';
+  const temp = `${file}.${process.pid}.tmp`;
+  try {
+    await writeFile(temp, text, { flag: 'wx' });
+    await rename(temp, file);
+  } catch (error) {
+    await rm(temp, { force: true });
+    throw error;
+  }
+  return 'written';
+}

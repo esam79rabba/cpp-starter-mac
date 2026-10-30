@@ -1,5 +1,10 @@
+import { mkdtemp, readFile, symlink, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import {
+  mergeCompileCommands,
+  updateCompileCommandsFile,
   compileCommandEntries,
   desiredClangdSettings,
   findSlnDir,
@@ -74,5 +79,52 @@ describe('findSlnDir', () => {
   it('skips directories with two .sln files', async () => {
     const readdir = fsOf({ '/s': ['a.sln', 'b.sln'] });
     expect(await findSlnDir('/s/Lab', readdir)).toBe('/s/Lab');
+  });
+});
+
+describe('mergeCompileCommands', () => {
+  const entry = (file: string, flag: string) => ({ directory: '/d', file, arguments: ['clang', flag, '-c', file] });
+  const lab2 = [entry('/s/Lab2/main.cpp', '-I/a'), entry('/s/Lab2/h.cpp', '-I/a')];
+  const lab1 = [entry('/s/Lab1/main.cpp', '-I/b')];
+
+  it('keeps both projects when Lab2 is built and then Lab1', () => {
+    const first = mergeCompileCommands(undefined, lab2);
+    const files = (JSON.parse(mergeCompileCommands(first, lab1)) as { file: string }[]).map((e) => e.file);
+    expect(files).toEqual(['/s/Lab1/main.cpp', '/s/Lab2/h.cpp', '/s/Lab2/main.cpp']);
+  });
+  it('gives identical text when rebuilding with the same args', () => {
+    const first = mergeCompileCommands(mergeCompileCommands(undefined, lab2), lab1);
+    expect(mergeCompileCommands(first, lab2)).toBe(first);
+  });
+  it('replaces the entries of rebuilt files', () => {
+    const first = mergeCompileCommands(undefined, lab2);
+    const changed = JSON.parse(mergeCompileCommands(first, [entry('/s/Lab2/main.cpp', '-I/new')])) as { arguments: string[] }[];
+    expect(changed[1].arguments).toContain('-I/new');
+    expect(changed).toHaveLength(2);
+  });
+  it('starts fresh on invalid existing content', () => {
+    for (const bad of ['not json', '{"a":1}', '[1,"x",{"file":3}]', '']) {
+      expect(JSON.parse(mergeCompileCommands(bad, lab1))).toEqual(lab1);
+    }
+  });
+});
+
+describe('updateCompileCommandsFile', () => {
+  const fresh = [{ directory: '/d', file: '/s/a.cpp', arguments: ['clang', '-c', '/s/a.cpp'] }];
+
+  it('writes, then reports unchanged', async () => {
+    const file = join(await mkdtemp(join(tmpdir(), 'cc-')), 'compile_commands.json');
+    expect(await updateCompileCommandsFile(file, fresh)).toBe('written');
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(fresh);
+    expect(await updateCompileCommandsFile(file, fresh)).toBe('unchanged');
+  });
+  it('refuses a symlink and leaves its target untouched', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'cc-'));
+    const victim = join(dir, 'victim.txt');
+    await writeFile(victim, 'precious');
+    const file = join(dir, 'compile_commands.json');
+    await symlink(victim, file);
+    expect(await updateCompileCommandsFile(file, fresh)).toBe('refused');
+    expect(await readFile(victim, 'utf8')).toBe('precious');
   });
 });
