@@ -2,7 +2,17 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { addBreakpoint, cleanUp, fixture, openFile, waitForDapEvent, waitForStop, type Stop } from './helpers';
+import {
+  addBreakpoint,
+  cleanUp,
+  findTerminal,
+  fixture,
+  openFile,
+  waitForDapEvent,
+  waitForExit,
+  waitForStop,
+  type Stop,
+} from './helpers';
 
 const HELLO = fixture('hello', 'main.cpp');
 const HELLO_COUT_LINE = 5;
@@ -120,21 +130,37 @@ suite('build and debug', function () {
     await debugAndExpectStop(SPACES, 5);
   });
 
-  test('saves an unsaved edit before building and stops on the new line', async () => {
+  test('saves an unsaved edit before building and debugs the edited code', async () => {
     const original = fs.readFileSync(HELLO, 'utf8');
     try {
       const editor = await openFile(HELLO);
-      await editor.edit((b) => b.insert(new vscode.Position(HELLO_COUT_LINE - 1, 0), '    std::cout << "x";\n'));
+      // Line 5 becomes `int edited = 42;`, line 6 the new cout: neither exists in the old build.
+      await editor.edit((b) =>
+        b.insert(new vscode.Position(HELLO_COUT_LINE - 1, 0), '    int edited = 42;\n    std::cout << "x";\n'),
+      );
       assert.strictEqual(editor.document.isDirty, true);
 
-      await debugAndExpectStop(HELLO, HELLO_COUT_LINE);
+      const at = await debugAndExpectStop(HELLO, HELLO_COUT_LINE + 1);
 
       assert.strictEqual(editor.document.isDirty, false);
-      assert.ok(fs.readFileSync(HELLO, 'utf8').includes('std::cout << "x";'), 'the edit was not saved to disk');
+      const reply = await at.session.customRequest('evaluate', {
+        expression: 'edited',
+        context: 'watch',
+        frameId: at.frameId,
+      });
+      assert.strictEqual(reply.result, '42', 'the program being debugged is not the edited build');
     } finally {
       await cleanUp();
       await restore(HELLO, original);
     }
+  });
+
+  test('Stop Debugging ends the program', async () => {
+    await debugAndExpectStop(HELLO, HELLO_COUT_LINE);
+    const terminal = findTerminal('C++: hello');
+    assert.strictEqual(terminal.exitStatus, undefined, 'the program should still be running at the breakpoint');
+    await vscode.debug.stopDebugging();
+    await waitForExit(terminal, 10000);
   });
 
   test('a compile error stops before debugging and shows one error', async () => {
@@ -178,12 +204,17 @@ suite('build and debug', function () {
     });
   });
 
-  test('Start Without Debugging opens a terminal named after the program', async () => {
+  test('Start Without Debugging runs hello in a terminal named after the program', async () => {
     await openFile(HELLO);
     assert.strictEqual(await run('cppStarter.runWithoutDebugging'), true);
-    assert.ok(
-      vscode.window.terminals.some((t) => t.name === 'C++: hello'),
-      vscode.window.terminals.map((t) => t.name).join(', '),
-    );
+    const status = await waitForExit(findTerminal('C++: hello'));
+    assert.strictEqual(status.code, 0);
+  });
+
+  test('Start Without Debugging runs a program whose path has spaces, a plus and Arabic', async () => {
+    await openFile(SPACES);
+    assert.strictEqual(await run('cppStarter.runWithoutDebugging'), true);
+    const status = await waitForExit(findTerminal('C++: واجب 1'));
+    assert.strictEqual(status.code, 0);
   });
 });

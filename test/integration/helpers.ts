@@ -1,6 +1,8 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export const FIXTURES = path.resolve(__dirname, '../../../test/fixtures');
 
 export function fixture(...parts: string[]): string {
@@ -112,12 +114,23 @@ export function addBreakpoint(file: string, line1Based: number): void {
   vscode.debug.addBreakpoints([new vscode.SourceBreakpoint(location)]);
 }
 
+/** Waits until the terminal's process has ended and returns its exit status. */
+export async function waitForExit(terminal: vscode.Terminal, timeoutMs = 15000): Promise<vscode.TerminalExitStatus> {
+  for (let waited = 0; terminal.exitStatus === undefined && waited < timeoutMs; waited += 50) await pause(50);
+  if (terminal.exitStatus === undefined) throw new Error(`'${terminal.name}' was still running after ${timeoutMs} ms`);
+  return terminal.exitStatus;
+}
+
+export function findTerminal(name: string): vscode.Terminal {
+  const terminal = vscode.window.terminals.find((t) => t.name === name);
+  if (!terminal) throw new Error(`no terminal named '${name}' among: ${vscode.window.terminals.map((t) => t.name).join(', ')}`);
+  return terminal;
+}
+
 export async function openFile(file: string): Promise<vscode.TextEditor> {
   const doc = await vscode.workspace.openTextDocument(file);
   return vscode.window.showTextDocument(doc);
 }
-
-const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function stopAllSessions(): Promise<void> {
   for (let i = 0; i < 5 && vscode.debug.activeDebugSession; i++) {

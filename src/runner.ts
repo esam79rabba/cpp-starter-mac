@@ -153,8 +153,9 @@ export class Runner {
    * lldb-dap itself, an Apple-signed system binary that macOS does not let a debugger attach to
    * ("Timed out trying to get messages from the runInTerminal launcher"). Instead the program
    * runs in an integrated terminal (so cin works) and waits in the compatibility header. Once it
-   * is fully loaded it writes its pid to `readyFile`, and only then does lldb-dap attach: under
-   * Rosetta, attaching during dyld start-up leaves the program stopped inside dyld. It is still a
+   * is fully loaded it writes its pid to `readyFile`, and only then does lldb-dap attach (under
+   * Rosetta, attaching during dyld start-up leaves the program stopped inside dyld) and set the
+   * flag the program waits on. It is still a
    * `launch` request, so stopping the session ends the program, as in Visual Studio.
    */
   private async startDebugging(target: BuildTarget, exe: string): Promise<boolean> {
@@ -174,7 +175,9 @@ export class Runner {
       program: exe,
       cwd: target.dir,
       args: [],
-      launchCommands: [`process attach --pid ${pid}`],
+      // Attach, then release the program's wait while it is still stopped: VS Code sets the
+      // breakpoints before configurationDone lets it run.
+      launchCommands: [`process attach --pid ${pid}`, 'expression -- cpp_starter_debugger_attached = 1'],
     };
     let started = false;
     try {

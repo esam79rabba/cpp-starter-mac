@@ -124,7 +124,11 @@ describe.each(archs)('compat shims (%s)', (arch) => {
     expect(r.stdout).toContain('hi!');
   });
 
-  it('with CPP_STARTER_WAIT_FOR_DEBUGGER=<file> it writes its pid there and runs nothing until a debugger attaches', async () => {
+  it('leaves names such as TRUE, FALSE, MAX, MIN and isset free for student code', async () => {
+    expect((await buildAndRun('macro_names')).stdout).toBe('3');
+  });
+
+  it('with CPP_STARTER_WAIT_FOR_DEBUGGER=<file> it writes its pid there and runs nothing until the debugger releases it', async () => {
     const { out, res } = await build('wait_debugger');
     expect(res.code).toBe(0);
     const ready = path.join(dir, `ready-${arch}`);
@@ -145,7 +149,13 @@ describe.each(archs)('compat shims (%s)', (arch) => {
     await new Promise((r) => setTimeout(r, 1000));
     expect(stdout).toBe('');
 
-    const lldb = await realExec('xcrun', ['lldb', '--batch', '-o', `process attach --pid ${child.pid}`, '-o', 'continue'], {
+    // Attaching alone must not release it: the debugger sets the flag, as the extension does.
+    const lldb = await realExec('xcrun', [
+      'lldb', '--batch',
+      '-o', `process attach --pid ${child.pid}`,
+      '-o', 'expression -- cpp_starter_debugger_attached = 1',
+      '-o', 'continue',
+    ], {
       timeoutMs: 20000,
     });
     expect(lldb.stdout + lldb.stderr).not.toMatch(/attach failed/);

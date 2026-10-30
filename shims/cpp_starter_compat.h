@@ -13,7 +13,6 @@
 #include <csignal>
 #include <cstdarg>
 #include <poll.h>
-#include <sys/sysctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -23,16 +22,14 @@
 // system binary that no debugger may attach to), so "Start Debugging" runs the program in the
 // terminal with CPP_STARTER_WAIT_FOR_DEBUGGER=<file>. The program writes its pid to that file
 // once it is fully loaded and waiting here; only then does lldb attach (attaching earlier,
-// during dyld start-up under Rosetta, stops the program inside dyld). Until lldb is attached
-// nothing may run: not main, not a global initializer. This inline variable is defined before
-// any user code in every translation unit (the header is force-included), so C++17 orders
-// its initialization first.
-inline bool cpp_starter_being_debugged() {
-    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, static_cast<int>(getpid())};
-    struct kinfo_proc info;
-    std::memset(&info, 0, sizeof info);
-    std::size_t size = sizeof info;
-    return sysctl(mib, 4, &info, &size, nullptr, 0) == 0 && (info.kp_proc.p_flag & P_TRACED) != 0;
+// during dyld start-up under Rosetta, stops the program inside dyld). After attaching, the
+// extension's lldb commands set cpp_starter_debugger_attached = 1 while the program is still
+// stopped, so breakpoints are in place before it continues. Until then nothing may run: not
+// main, not a global initializer. This inline variable is defined before any user code in
+// every translation unit (the header is force-included), so C++17 orders its initialization
+// first. C linkage gives lldb a stable, unmangled name to assign.
+extern "C" {
+inline volatile int cpp_starter_debugger_attached = 0;
 }
 
 inline const bool cpp_starter_debugger_ready = [] {
@@ -44,7 +41,7 @@ inline const bool cpp_starter_debugger_ready = [] {
     }
     unsetenv("CPP_STARTER_WAIT_FOR_DEBUGGER");  // not for programs this one starts
     for (int i = 0; i < 6000; ++i) {  // 60 seconds
-        if (cpp_starter_being_debugged()) return true;
+        if (cpp_starter_debugger_attached != 0) return true;
         usleep(10000);
     }
     std::fputs("The debugger did not start. Close this window and try again.\n", stderr);
