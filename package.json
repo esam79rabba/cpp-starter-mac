@@ -5,6 +5,10 @@
   "version": "0.0.1",
   "publisher": "cpp-starter",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/esam79rabba/cpp-starter-mac.git"
+  },
   "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
@@ -39,7 +43,7 @@
     "compile:tests": "tsc -p tsconfig.json",
     "test:unit": "vitest run --configLoader runner",
     "test:integration": "npm run build && npm run compile:tests && node out/test/integration/runTests.js",
-    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "package": "vsce package --no-dependencies",
     "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {

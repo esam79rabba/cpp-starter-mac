@@ -48,4 +48,3 @@ The header and the .cpp together implement `system("pause"/"pause>nul"/"cls")`, 
 - `shims/cpp_starter_compat.h` may include only C++ standard library headers (it is force-included into every student file); anything POSIX lives in `shims/cpp_starter_compat.cpp`. `test/fixtures/shims/macro_names.cpp` and `posix_names.cpp` guard this; keep them passing. The .cpp calls POSIX functions through `dlsym` on libSystem, because a student global such as `int read` would otherwise take over the shim's `read` at link time.
 - Never write `tasks.json`, `launch.json` or workspace settings into the student's folder. Settings are global and tracked as "ours" (see `intellisense.ts`).
 - Spawn child processes with argument arrays through `exec.ts`, never shell strings (paths contain spaces, `+`, Arabic).
-- Add `repository` to `package.json` when the GitHub repo exists, then drop `--allow-missing-repository` from the `package` script.

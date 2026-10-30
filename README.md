@@ -53,5 +53,4 @@ Tested on Apple Silicon. Intel Macs should work but are not yet tested on real h
 - `npm run test:unit` and `npm run test:integration` run the tests. `npm run package` builds `cpp-starter-mac-<version>.vsix`.
 - The `publisher` in `package.json` is a placeholder (`cpp-starter`). Change it to your own Marketplace publisher id before publishing.
 - Publish with `npx vsce login <publisher>` and then `npx vsce publish`.
-- The `repository` field is left out on purpose, and the `package` script passes `--allow-missing-repository`. Add `repository` to `package.json` once the GitHub repository exists, then remove that flag.
 - `npm run icon` regenerates `media/icon.png` from `media/icon.svg`.
