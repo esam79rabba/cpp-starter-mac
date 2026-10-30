@@ -84,6 +84,26 @@ suite('build and debug', function () {
     await debugAndExpectStop(HELLO, HELLO_COUT_LINE);
   });
 
+  test('F5 from the terminal (VS Code debug start, no launch.json) builds and stops at the breakpoint', async () => {
+    await openFile(HELLO);
+    addBreakpoint(HELLO, HELLO_COUT_LINE);
+    await vscode.commands.executeCommand('workbench.action.terminal.focus');
+    const sessions: vscode.DebugSession[] = [];
+    const sub = vscode.debug.onDidStartDebugSession((s) => sessions.push(s));
+    try {
+      const stop = later(waitForStop(30000));
+      // What VS Code resolves for the debugger picker's default: a config with no program.
+      await vscode.debug.startDebugging(undefined, { type: 'cppstarter', request: 'launch', name: 'picker' });
+      const at = await stop;
+      assert.strictEqual(at.file, path.normalize(HELLO));
+      assert.strictEqual(at.line, HELLO_COUT_LINE);
+      assert.strictEqual(sessions.length, 1, 'expected only the extension\'s own session');
+      assert.strictEqual(typeof at.session.configuration.program, 'string');
+    } finally {
+      sub.dispose();
+    }
+  });
+
   test('stops in Student.cpp in a method called from main.cpp', async () => {
     await debugAndExpectStop(STUDENT_CPP, STUDENT_DESCRIBE_LINE);
   });

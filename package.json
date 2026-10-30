@@ -27,7 +27,8 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "onLanguage:cpp"
+    "onLanguage:cpp",
+    "onDebugResolve:cppstarter"
   ],
   "main": "./dist/extension.js",
   "extensionDependencies": [
@@ -83,6 +84,7 @@
       {
         "type": "cppstarter",
         "label": "C++ (Apple lldb)",
+        "initialConfigurations": [],
         "languages": [
           "cpp"
         ]
@@ -106,22 +108,22 @@
       {
         "key": "f5",
         "command": "cppStarter.startDebugging",
-        "when": "editorLangId == cpp && !inDebugMode"
+        "when": "resourceLangId == cpp && !inDebugMode"
       },
       {
         "key": "ctrl+f5",
         "command": "cppStarter.runWithoutDebugging",
-        "when": "editorLangId == cpp && !inDebugMode"
+        "when": "resourceLangId == cpp && !inDebugMode"
       },
       {
         "key": "ctrl+shift+b",
         "command": "cppStarter.build",
-        "when": "editorLangId == cpp"
+        "when": "resourceLangId == cpp"
       },
       {
         "key": "cmd+shift+b",
         "command": "cppStarter.build",
-        "when": "editorLangId == cpp"
+        "when": "resourceLangId == cpp"
       }
     ],
     "menus": {
