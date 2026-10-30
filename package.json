@@ -1,0 +1,151 @@
+{
+  "name": "cpp-starter-mac",
+  "displayName": "C++ Starter for Mac",
+  "description": "Build, run and debug C++ on a Mac like in Visual Studio: F5 to run, breakpoints, plain-English errors. Uses Apple clang++ and lldb-dap.",
+  "version": "0.0.1",
+  "publisher": "cpp-starter",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/esam79rabba/cpp-starter-mac.git"
+  },
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Debuggers",
+    "Education"
+  ],
+  "keywords": [
+    "c++",
+    "cpp",
+    "clang",
+    "lldb",
+    "macos",
+    "beginner",
+    "student",
+    "visual studio",
+    "debugger"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:cpp",
+    "onDebugResolve:cppstarter"
+  ],
+  "main": "./dist/extension.js",
+  "extensionDependencies": [
+    "llvm-vs-code-extensions.vscode-clangd"
+  ],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "compile:tests": "tsc -p tsconfig.json",
+    "test:unit": "vitest run --configLoader runner",
+    "test:integration": "npm run build && npm run compile:tests && node out/test/integration/runTests.js",
+    "package": "vsce package --no-dependencies",
+    "icon": "node scripts/make-icon.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.20.5",
+    "@types/vscode": "^1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "glob": "^14.0.3",
+    "mocha": "^12.0.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "cppStarter.showStartPage",
+        "title": "C++: Show Start Page"
+      },
+      {
+        "command": "cppStarter.checkTools",
+        "title": "C++: Check Tools"
+      },
+      {
+        "command": "cppStarter.startDebugging",
+        "title": "C++: Start Debugging",
+        "icon": "$(debug-alt)"
+      },
+      {
+        "command": "cppStarter.runWithoutDebugging",
+        "title": "C++: Start Without Debugging"
+      },
+      {
+        "command": "cppStarter.build",
+        "title": "C++: Build",
+        "icon": "$(tools)"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "cppstarter",
+        "label": "C++ (Apple lldb)",
+        "initialConfigurations": [],
+        "languages": [
+          "cpp"
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "C++ Starter",
+      "properties": {
+        "cppStarter.architecture": {
+          "type": "string",
+          "enum": [
+            "native",
+            "x86_64"
+          ],
+          "default": "native",
+          "description": "Build for Intel (x86_64) and run under Rosetta. For testing Intel support on Apple Silicon."
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "key": "f5",
+        "command": "cppStarter.startDebugging",
+        "when": "resourceLangId == cpp && !inDebugMode"
+      },
+      {
+        "key": "ctrl+f5",
+        "command": "cppStarter.runWithoutDebugging",
+        "when": "resourceLangId == cpp && !inDebugMode"
+      },
+      {
+        "key": "ctrl+shift+b",
+        "command": "cppStarter.build",
+        "when": "resourceLangId == cpp"
+      },
+      {
+        "key": "cmd+shift+b",
+        "command": "cppStarter.build",
+        "when": "resourceLangId == cpp"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cppStarter.startDebugging",
+          "group": "navigation@1",
+          "when": "resourceLangId == cpp && !inDebugMode"
+        },
+        {
+          "command": "cppStarter.build",
+          "group": "navigation@2",
+          "when": "resourceLangId == cpp && !inDebugMode"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.11.2"
+  }
+}
