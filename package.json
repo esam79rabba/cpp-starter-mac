@@ -45,6 +45,10 @@
   "contributes": {
     "commands": [
       {
+        "command": "cppStarter.showStartPage",
+        "title": "C++: Show Start Page"
+      },
+      {
         "command": "cppStarter.checkTools",
         "title": "C++: Check Tools"
       },

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { registerDebugAdapter } from './debugAdapter';
 import { registerRunner } from './runner';
+import { registerStartPage, showStartPageOnFirstRun } from './startPage';
 import { registerUi } from './ui';
 import { ensureToolchain, recheckToolchain } from './toolchainUi';
 
@@ -16,7 +17,10 @@ export function activate(context: vscode.ExtensionContext): void {
   registerDebugAdapter(context, ensureToolchain);
   registerRunner(context);
   registerUi(context);
-  void ensureToolchain();
+  registerStartPage(context);
+  ensureToolchain()
+    .then(() => showStartPageOnFirstRun(context))
+    .catch(() => undefined);
 }
 
 export function deactivate(): void {}
