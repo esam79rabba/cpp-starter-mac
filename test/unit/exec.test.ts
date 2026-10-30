@@ -15,4 +15,12 @@ describe('realExec', () => {
   it('rejects when the binary cannot be started', async () => {
     await expect(realExec('/no/such/bin', [])).rejects.toThrow();
   });
+
+  it('resolves with code -1 and timedOut when the timeout kills the process', async () => {
+    const started = Date.now();
+    const result = await realExec('/bin/sleep', ['5'], { timeoutMs: 200 });
+    expect(result.code).toBe(-1);
+    expect(result.timedOut).toBe(true);
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
 });
