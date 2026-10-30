@@ -74,6 +74,11 @@ describe('parseDiagnostics', () => {
     const ds = parseDiagnostics('weird failure\n\n', '/w', t.sources, true);
     expect(ds).toEqual([{ file: '/w/main.cpp', line: 1, column: 1, severity: 'error', message: 'weird failure' }]);
   });
+  it('adds an error when a failed build reports only warnings', () => {
+    const ds = parseDiagnostics("main.cpp:3:9: warning: unused variable 'x' [-Wunused-variable]\nclang++: error: something odd\n", '/w', t.sources, true);
+    expect(ds.filter((d) => d.severity === 'error')).toHaveLength(1);
+    expect(ds.filter((d) => d.severity === 'warning')).toHaveLength(1);
+  });
   it('returns nothing for unparsable output when the build succeeded', () => {
     expect(parseDiagnostics('1 warning generated.\n', '/w', t.sources, false)).toEqual([]);
   });

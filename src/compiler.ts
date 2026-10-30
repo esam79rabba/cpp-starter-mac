@@ -57,7 +57,7 @@ const UNDEFINED_SYMBOLS = /undefined symbols? for architecture|symbol\(s\) not f
 
 /**
  * Parses clang/ld output. `sources` supplies the file for linker errors; `failed` makes sure
- * a failed build never reports zero problems.
+ * a failed build always reports at least one error.
  */
 export function parseDiagnostics(
   output: string,
@@ -92,7 +92,7 @@ export function parseDiagnostics(
     }
   }
 
-  if (diagnostics.length === 0 && failed) {
+  if (failed && !diagnostics.some((d) => d.severity === 'error')) {
     const last = lines.map((l) => l.trim()).filter((l) => l !== '').pop();
     diagnostics.push({
       file: linkerFile,
