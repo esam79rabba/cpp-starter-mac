@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run build                                   # esbuild bundle to dist/extension.js
 npx tsc --noEmit                                # typecheck
-npm run test:unit                               # vitest (config uses --configLoader runner)
+npm run test:unit                               # vitest; run `npm run build` first (package.test.ts checks dist/extension.js)
 npx vitest run test/unit/compiler.test.ts       # one unit file
 CPP_STARTER_SHIM_X86=1 npx vitest run test/unit/shims.test.ts   # shim tests as x86_64 under Rosetta
 npm run test:integration                        # build + tsc + downloaded VS Code with clangd installed; mocha
@@ -15,7 +15,7 @@ MOCHA_GREP="breakpoint" npm run test:integration   # one integration test, by na
 npm run package                                 # cpp-starter-mac-<version>.vsix (vsce, --no-dependencies)
 ```
 
-`MOCHA_GREP` is read in `test/integration/index.ts` and forwarded by `runTests.ts`. Integration tests need Apple's command line tools and open real VS Code windows. `test/unit/package.test.ts` runs `vsce ls` and pins the vsix contents (`dist/`, `shims/`, `media/icon.png`, README, CHANGELOG, LICENSE, package.json).
+The `--configLoader runner` flag is set in the `test:unit` script in `package.json`, not in `vitest.config.ts`. `MOCHA_GREP` is read in `test/integration/index.ts` and forwarded by `runTests.ts`. Integration tests need Apple's command line tools and open real VS Code windows. `test/unit/package.test.ts` runs `vsce ls` and pins the vsix contents (`dist/`, `shims/`, `media/icon.png`, README, CHANGELOG, LICENSE, package.json).
 
 ## Architecture
 

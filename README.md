@@ -29,7 +29,7 @@ Beginner C++ students on macOS, especially those who learned on Visual Studio in
 
 ## One program per folder
 
-Every folder is one program. All `.cpp` files in the folder (and its subfolders) are built together, and exactly one of them may contain `main`. If you open a Visual Studio `.sln` or `.vcxproj`, the extension reads the source files, include folders and defines from it, and asks which project to run when there are several.
+Every folder is one program. All `.cpp` files directly in the folder are built together; files in subfolders are not. Exactly one of those files may contain `main`. If you open a Visual Studio `.sln` or `.vcxproj`, the extension reads the source files, include folders and defines from it, and asks which project to run when there are several.
 
 ## Windows-only code that works
 
@@ -40,7 +40,7 @@ Code copied from Visual Studio projects compiles unchanged for these:
 - `#include "pch.h"`, `#include "stdafx.h"` and `#include <conio.h>` (`_getch`, `_getche`, `_kbhit`)
 - The "Press any key to close this window . . ." wait at the end of Ctrl+F5 and F5 runs
 
-Other Windows-specific code (for example `<windows.h>`) is not supported; the error explanation will tell you so.
+Code that uses Windows-only libraries such as `<windows.h>` or MFC won't compile on a Mac. You'll see a "file not found" error for those headers.
 
 ## Status
 
