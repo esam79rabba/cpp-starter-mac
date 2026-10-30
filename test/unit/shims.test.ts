@@ -43,7 +43,7 @@ describe.each(archs)('compat shims (%s)', (arch) => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  async function build(name: string) {
+  async function build(name: string, sources: string[] = [`${name}.cpp`]) {
     const out = path.join(dir, `${name}-${arch}`);
     // `xcrun clang++` supplies the macOS SDK sysroot that the bare binary lacks.
     const res = await realExec('xcrun', [
@@ -52,13 +52,18 @@ describe.each(archs)('compat shims (%s)', (arch) => {
       '-include', path.join(shims, 'cpp_starter_compat.h'),
       '-I', path.join(shims, 'include'),
       '-Wno-unknown-pragmas',
-      path.join(fixtures, `${name}.cpp`), '-o', out,
+      ...sources.map((f) => path.join(fixtures, f)), '-o', out,
     ]);
     return { out, res };
   }
 
-  async function buildAndRun(name: string, stdin = '', env: NodeJS.ProcessEnv = { CPP_STARTER_NO_PAUSE: '1' }) {
-    const { out, res } = await build(name);
+  async function buildAndRun(
+    name: string,
+    stdin = '',
+    env: NodeJS.ProcessEnv = { CPP_STARTER_NO_PAUSE: '1' },
+    sources?: string[],
+  ) {
+    const { out, res } = await build(name, sources);
     expect(res.stderr).toBe('');
     expect(res.code).toBe(0);
     return run(out, stdin, env, arch === 'x86_64');
@@ -77,6 +82,25 @@ describe.each(archs)('compat shims (%s)', (arch) => {
   it('system("cls") clears the screen', async () => {
     const r = await buildAndRun('cls');
     expect(r.stdout).toContain('\x1b[2J\x1b[H');
+  });
+
+  it('system("Cls") matches case-insensitively', async () => {
+    expect((await buildAndRun('cls_mixed')).stdout).toContain('\x1b[2J\x1b[H');
+  });
+
+  it('system("pause>nul") and "PAUSE > NUL" wait silently', async () => {
+    expect((await buildAndRun('pause_nul')).stdout).toBe('after');
+  });
+
+  it('sprintf_s works with and without a size argument', async () => {
+    expect((await buildAndRun('sprintf2')).stdout).toBe('7-x\ny=8\n');
+  });
+
+  it('links two translation units that both include the shim', async () => {
+    const r = await buildAndRun('multi_tu', '', undefined, ['multi_tu/a.cpp', 'multi_tu/b.cpp']);
+    expect(r.stdout.match(/Press any key to continue/g)).toHaveLength(2);
+    expect(r.stdout).toContain('other\n');
+    expect(r.stdout).toContain('main\n');
   });
 
   it('#include "pch.h" compiles', async () => {

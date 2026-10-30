@@ -10,6 +10,8 @@
 #include <tuple>
 #include <type_traits>
 
+#include <csignal>
+#include <cstdarg>
 #include <poll.h>
 #include <termios.h>
 #include <unistd.h>
@@ -22,46 +24,99 @@ inline bool cpp_starter_no_pause() {
     return v != nullptr && v[0] == '1';
 }
 
+// While stdin is in raw mode, Ctrl+C / kill / hangup must not leave the terminal broken:
+// the handler restores the saved settings, reinstates the previous handler and re-raises.
+struct cpp_starter_term_state {
+    termios saved;
+    struct sigaction previous[3];
+};
+inline cpp_starter_term_state cpp_starter_term;
+inline constexpr int cpp_starter_signals[3] = {SIGINT, SIGTERM, SIGHUP};
+
+inline void cpp_starter_restore_and_reraise(int sig) {
+    tcsetattr(STDIN_FILENO, TCSANOW, &cpp_starter_term.saved);
+    for (int i = 0; i < 3; ++i) {
+        if (cpp_starter_signals[i] == sig) sigaction(sig, &cpp_starter_term.previous[i], nullptr);
+    }
+    raise(sig);
+}
+
 // Reads one key from stdin. Raw (unbuffered) terminal mode is used only when stdin is a
 // terminal, and the terminal is always restored. Returns the key, or -1 on end of input.
 inline int cpp_starter_read_key(bool echo) {
-    termios saved;
     bool raw = false;
-    if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &saved) == 0) {
-        termios t = saved;
+    if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &cpp_starter_term.saved) == 0) {
+        termios t = cpp_starter_term.saved;
         t.c_lflag &= ~static_cast<tcflag_t>(ICANON);
         if (!echo) t.c_lflag &= ~static_cast<tcflag_t>(ECHO);
         t.c_cc[VMIN] = 1;
         t.c_cc[VTIME] = 0;
+        struct sigaction sa;
+        std::memset(&sa, 0, sizeof sa);
+        sa.sa_handler = cpp_starter_restore_and_reraise;
+        sigemptyset(&sa.sa_mask);
+        for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &sa, &cpp_starter_term.previous[i]);
         raw = tcsetattr(STDIN_FILENO, TCSANOW, &t) == 0;
+        if (!raw) {
+            for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &cpp_starter_term.previous[i], nullptr);
+        }
     }
     unsigned char c = 0;
     ssize_t n = read(STDIN_FILENO, &c, 1);
-    if (raw) tcsetattr(STDIN_FILENO, TCSANOW, &saved);
+    if (raw) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &cpp_starter_term.saved);
+        for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &cpp_starter_term.previous[i], nullptr);
+    }
     return n == 1 ? c : -1;
 }
 
 // ---- system("pause") / system("cls") ---------------------------------------------------
 
+// Case-insensitive match of the text at *p against a lower-case word; advances *p on success.
+inline bool cpp_starter_eat_word(const char** p, const char* word) {
+    const char* q = *p;
+    for (; *word != '\0'; ++word, ++q) {
+        if (std::tolower(static_cast<unsigned char>(*q)) != *word) return false;
+    }
+    *p = q;
+    return true;
+}
+
+inline const char* cpp_starter_skip_space(const char* p) {
+    while (*p != '\0' && std::isspace(static_cast<unsigned char>(*p))) ++p;
+    return p;
+}
+
 inline int cpp_starter_system(const char* command) {
     // Taken before `system` is turned into a macro below, so this is the real one.
     static int (*const real_system)(const char*) = ::system;
     if (command != nullptr) {
-        bool is_pause = true;
-        const char* want = "pause";
-        size_t i = 0;
-        for (; want[i] != '\0'; ++i) {
-            if (std::tolower(static_cast<unsigned char>(command[i])) != want[i]) { is_pause = false; break; }
+        const char* p = cpp_starter_skip_space(command);
+        const char* q = p;
+        if (cpp_starter_eat_word(&q, "pause")) {
+            q = cpp_starter_skip_space(q);
+            bool quiet = false;
+            if (*q == '>') {
+                q = cpp_starter_skip_space(q + 1);
+                quiet = cpp_starter_eat_word(&q, "nul");
+                q = cpp_starter_skip_space(q);
+                if (!quiet) q = "?";  // some other redirect: leave it to the real shell
+            }
+            if (*q == '\0') {
+                if (!quiet) {
+                    std::fputs("Press any key to continue . . . ", stdout);
+                    std::fflush(stdout);
+                }
+                if (!cpp_starter_no_pause()) cpp_starter_read_key(false);
+                if (!quiet) {
+                    std::fputs("\n", stdout);
+                    std::fflush(stdout);
+                }
+                return 0;
+            }
         }
-        if (is_pause && command[i] == '\0') {
-            std::fputs("Press any key to continue . . . ", stdout);
-            std::fflush(stdout);
-            if (!cpp_starter_no_pause()) cpp_starter_read_key(false);
-            std::fputs("\n", stdout);
-            std::fflush(stdout);
-            return 0;
-        }
-        if (std::strcmp(command, "cls") == 0 || std::strcmp(command, "CLS") == 0) {
+        q = p;
+        if (cpp_starter_eat_word(&q, "cls") && *cpp_starter_skip_space(q) == '\0') {
             std::fputs("\033[2J\033[H", stdout);
             std::fflush(stdout);
             return 0;
@@ -114,10 +169,29 @@ int sscanf_s(const char* buffer, const char* format, Args... args) {
                       std::tuple_cat(cpp_starter_keep_pointer(args)...));
 }
 
-// Macros (not functions) so the compiler still checks printf-style formats.
+// Macros so the compiler still checks printf-style formats.
 #define printf_s printf
 #define fprintf_s fprintf
-#define sprintf_s(buffer, size, ...) snprintf(buffer, size, __VA_ARGS__)
+
+// sprintf_s(buf, size, fmt, ...) and the array form sprintf_s(buf, fmt, ...).
+__attribute__((format(printf, 3, 4)))
+inline int sprintf_s(char* buffer, std::size_t size, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int n = std::vsnprintf(buffer, size, format, args);
+    va_end(args);
+    return n;
+}
+
+template <std::size_t N>
+__attribute__((format(printf, 2, 3)))
+int sprintf_s(char (&buffer)[N], const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int n = std::vsnprintf(buffer, N, format, args);
+    va_end(args);
+    return n;
+}
 
 inline int strcpy_s(char* dst, std::size_t size, const char* src) {
     return std::snprintf(dst, size, "%s", src) < 0 ? 1 : 0;
