@@ -85,6 +85,42 @@
           "description": "Build for Intel (x86_64) and run under Rosetta. For testing Intel support on Apple Silicon."
         }
       }
+    },
+    "keybindings": [
+      {
+        "key": "f5",
+        "command": "cppStarter.startDebugging",
+        "when": "editorLangId == cpp && !inDebugMode"
+      },
+      {
+        "key": "ctrl+f5",
+        "command": "cppStarter.runWithoutDebugging",
+        "when": "editorLangId == cpp && !inDebugMode"
+      },
+      {
+        "key": "ctrl+shift+b",
+        "command": "cppStarter.build",
+        "when": "editorLangId == cpp"
+      },
+      {
+        "key": "cmd+shift+b",
+        "command": "cppStarter.build",
+        "when": "editorLangId == cpp"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cppStarter.startDebugging",
+          "group": "navigation@1",
+          "when": "resourceLangId == cpp && !inDebugMode"
+        },
+        {
+          "command": "cppStarter.build",
+          "group": "navigation@2",
+          "when": "resourceLangId == cpp && !inDebugMode"
+        }
+      ]
     }
   },
   "dependencies": {

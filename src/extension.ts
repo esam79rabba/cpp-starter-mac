@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { registerDebugAdapter } from './debugAdapter';
 import { registerRunner } from './runner';
+import { registerUi } from './ui';
 import { ensureToolchain, recheckToolchain } from './toolchainUi';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -14,6 +15,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   registerDebugAdapter(context, ensureToolchain);
   registerRunner(context);
+  registerUi(context);
   void ensureToolchain();
 }
 
