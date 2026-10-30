@@ -38,41 +38,64 @@ export async function detectToolchain(exec: ExecFn): Promise<Toolchain | undefin
 
 const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Starts Apple's installer, then polls until the tools appear or the timeout passes. */
+export type InstallResult =
+  | { kind: 'installed'; toolchain: Toolchain }
+  | { kind: 'startFailed' }
+  | { kind: 'timeout' }
+  | { kind: 'cancelled' };
+
+/** Starts Apple's installer, then polls until the tools appear, the timeout passes, or the caller cancels. */
 export async function installToolchain(
   exec: ExecFn,
-  opts: { pollMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void> } = {},
-): Promise<Toolchain | undefined> {
+  opts: {
+    pollMs?: number;
+    timeoutMs?: number;
+    sleep?: (ms: number) => Promise<void>;
+    isCancelled?: () => boolean;
+  } = {},
+): Promise<InstallResult> {
   const pollMs = opts.pollMs ?? DEFAULT_POLL_MS;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const sleep = opts.sleep ?? realSleep;
+  const isCancelled = opts.isCancelled ?? (() => false);
 
+  let startCode: number;
   try {
-    await exec('xcode-select', ['--install']);
+    startCode = (await exec('xcode-select', ['--install'])).code;
   } catch {
-    // If the installer cannot start, polling below simply times out.
+    return { kind: 'startFailed' };
+  }
+  if (startCode !== 0) {
+    // The installer may refuse because the tools are already there.
+    const already = await detectToolchain(exec);
+    return already ? { kind: 'installed', toolchain: already } : { kind: 'startFailed' };
   }
 
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const found = await detectToolchain(exec);
-    if (found) return found;
-    if (Date.now() >= deadline) return undefined;
+    if (found) return { kind: 'installed', toolchain: found };
+    if (isCancelled()) return { kind: 'cancelled' };
+    if (Date.now() >= deadline) return { kind: 'timeout' };
     await sleep(pollMs);
   }
 }
 
 /**
- * Wraps an async lookup so only a found result is remembered. An undefined (or failed)
- * result is retried on the next call, and concurrent callers share one in-flight run.
+ * Wraps an async lookup so only a found result is remembered. An undefined result or a
+ * rejection is never cached (the next call retries; a rejection reaches the caller), and
+ * concurrent callers share one in-flight run. `{ fresh: true }` drops the cached value
+ * but still joins a run that is already in progress.
  */
-export function cachedWhenFound<T>(run: () => Promise<T | undefined>): () => Promise<T | undefined> {
+export function cachedWhenFound<T>(
+  run: () => Promise<T | undefined>,
+): (opts?: { fresh?: boolean }) => Promise<T | undefined> {
   let cached: T | undefined;
   let inFlight: Promise<T | undefined> | undefined;
-  return () => {
+  return (opts) => {
+    if (opts?.fresh) cached = undefined;
     if (cached !== undefined) return Promise.resolve(cached);
     inFlight ??= run()
-      .catch(() => undefined)
       .then((result) => {
         cached = result;
         return result;
