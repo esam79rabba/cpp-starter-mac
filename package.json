@@ -1,19 +1,29 @@
 {
   "name": "cpp-starter-mac",
   "displayName": "C++ Starter for Mac",
-  "description": "A Visual Studio-like build and debug experience for beginner C++ students on macOS, using Apple clang++ and lldb-dap.",
+  "description": "Build, run and debug C++ on a Mac like in Visual Studio: F5 to run, breakpoints, plain-English errors. Uses Apple clang++ and lldb-dap.",
   "version": "0.0.1",
   "publisher": "cpp-starter",
   "license": "MIT",
+  "icon": "media/icon.png",
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
     "Programming Languages",
-    "Debuggers"
+    "Debuggers",
+    "Education"
   ],
-  "os": [
-    "darwin"
+  "keywords": [
+    "c++",
+    "cpp",
+    "clang",
+    "lldb",
+    "macos",
+    "beginner",
+    "student",
+    "visual studio",
+    "debugger"
   ],
   "activationEvents": [
     "onStartupFinished",
@@ -28,9 +38,11 @@
     "compile:tests": "tsc -p tsconfig.json",
     "test:unit": "vitest run --configLoader runner",
     "test:integration": "npm run build && npm run compile:tests && node out/test/integration/runTests.js",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies --allow-missing-repository",
+    "icon": "node scripts/make-icon.mjs"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.20.5",
     "@types/vscode": "^1.95.0",

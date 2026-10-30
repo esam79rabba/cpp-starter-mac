@@ -30,7 +30,10 @@ async function main(): Promise<void> {
     extensionDevelopmentPath,
     extensionTestsPath,
     launchArgs: [workspaceFolder],
-    extensionTestsEnv: { CPP_STARTER_NO_PAUSE: '1' },
+    extensionTestsEnv: {
+      CPP_STARTER_NO_PAUSE: '1',
+      ...(process.env.MOCHA_GREP ? { MOCHA_GREP: process.env.MOCHA_GREP } : {}),
+    },
   });
 }
 
