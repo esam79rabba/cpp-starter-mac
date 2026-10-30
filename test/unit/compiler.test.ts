@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat } from 'fs/promises';
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -26,7 +26,8 @@ describe('buildArgs', () => {
       '-std=c++17', '-g', '-O0', '-Wall', '-fno-color-diagnostics', '-fno-caret-diagnostics',
       '-Wno-unknown-pragmas', '-isysroot', '/sdk',
       '-include', '/shims/cpp_starter_compat.h', '-I', '/shims/include',
-      '-I', '/p/inc', '-D', '_DEBUG', '/p/a.cpp', '/p/b.cpp', '-o', '/out/p',
+      '-I', '/p/inc', '-D', '_DEBUG', '/p/a.cpp', '/p/b.cpp', '/shims/cpp_starter_compat.cpp',
+      '-o', '/out/p',
     ]);
   });
 
@@ -139,5 +140,20 @@ describe('build (real clang++)', () => {
     expect(r.ok).toBe(false);
     expect(r.diagnostics).toHaveLength(1);
     expect(r.diagnostics[0].message).toContain("duplicate symbol '_main'");
+    expect(r.diagnostics[0].file).toBe(join(dir, 'lab1.cpp'));
+  }, 60_000);
+
+  it('puts a linker error on the student\'s first source, not the linked shim source', async () => {
+    const dir = join(storageDir, 'undefined');
+    await mkdir(dir, { recursive: true });
+    const main = join(dir, 'main.cpp');
+    await writeFile(main, 'int helper();\nint main() { return helper(); }\n');
+    const t: BuildTarget = { key: dir, name: 'undefined', dir, sources: [main], includeDirs: [], defines: [] };
+    const r = await build(t, opts());
+    expect(r.ok).toBe(false);
+    const errors = r.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors).toHaveLength(1);
+    expect(errors[0].file).toBe(main);
+    expect(errors[0].message).toMatch(/undefined symbol/i);
   }, 60_000);
 });

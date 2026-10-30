@@ -15,6 +15,9 @@ export interface CompilerDiagnostic {
   message: string;
 }
 
+/** File name of the compiled half of the compatibility layer, linked into every program. */
+export const SHIM_SOURCE_NAME = 'cpp_starter_compat.cpp';
+
 export function buildArgs(
   target: BuildTarget,
   out: string,
@@ -40,6 +43,7 @@ export function buildArgs(
     ...target.defines.flatMap((def) => ['-D', def]),
     ...(arch === 'x86_64' ? ['-arch', 'x86_64'] : []),
     ...target.sources,
+    `${shimDir}/${SHIM_SOURCE_NAME}`,
     '-o',
     out,
   ];

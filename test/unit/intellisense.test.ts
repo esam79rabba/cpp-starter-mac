@@ -53,14 +53,20 @@ describe('isOurs', () => {
 });
 
 describe('compileCommandEntries', () => {
-  const args = ['-std=c++17', '-I', '/s/common', '/s/Lab2/main.cpp', '/s/Lab2/util/helper.cpp', '-o', '/out/Lab2'];
+  const args = [
+    '-std=c++17', '-I', '/s/common', '/s/Lab2/main.cpp', '/s/Lab2/util/helper.cpp',
+    '/ext/shims/cpp_starter_compat.cpp', '-o', '/out/Lab2',
+  ];
   const entries = compileCommandEntries(target, args, '/usr/bin/clang++');
 
   it('has one entry per source with the project dir', () => {
     expect(entries.map((e) => e.file)).toEqual(target.sources);
     expect(entries.every((e) => e.directory === '/s/Lab2')).toBe(true);
   });
-  it('drops -o, its value and all sources, then appends -c file', () => {
+  it('gives the linked shim source no entry', () => {
+    expect(entries.some((e) => e.file.endsWith('cpp_starter_compat.cpp'))).toBe(false);
+  });
+  it('drops -o, its value, all sources and the shim source, then appends -c file', () => {
     expect(entries[1].arguments).toEqual([
       '/usr/bin/clang++', '-std=c++17', '-I', '/s/common', '-c', '/s/Lab2/util/helper.cpp',
     ]);

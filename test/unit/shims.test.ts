@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn } from 'child_process';
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { closeSync, openSync } from 'fs';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { realExec } from '../../src/exec';
@@ -52,7 +53,9 @@ describe.each(archs)('compat shims (%s)', (arch) => {
       '-include', path.join(shims, 'cpp_starter_compat.h'),
       '-I', path.join(shims, 'include'),
       '-Wno-unknown-pragmas',
-      ...sources.map((f) => path.join(fixtures, f)), '-o', out,
+      ...sources.map((f) => path.join(fixtures, f)),
+      path.join(shims, 'cpp_starter_compat.cpp'),
+      '-o', out,
     ]);
     return { out, res };
   }
@@ -127,6 +130,41 @@ describe.each(archs)('compat shims (%s)', (arch) => {
   it('leaves names such as TRUE, FALSE, MAX, MIN and isset free for student code', async () => {
     expect((await buildAndRun('macro_names')).stdout).toBe('3');
   });
+
+  it('leaves POSIX names such as pause, read, link and ECHO free for student code', async () => {
+    expect((await buildAndRun('posix_names')).stdout).toBe('p4\n');
+  });
+
+  it('a student global named read does not break the exit pause, which reads a key', async () => {
+    const { out, res } = await build('posix_names');
+    expect(res.stderr).toBe('');
+    // `script` runs the program on a pseudo-terminal, so the exit pause really reads a key.
+    // Its stdin must be a file: script cannot use the socket node gives a child for stdin.
+    const keyFile = path.join(dir, 'key.txt');
+    await writeFile(keyFile, 'x');
+    const env = { ...process.env };
+    delete env.CPP_STARTER_NO_PAUSE;
+    const cmd = arch === 'x86_64' ? ['arch', '-x86_64', out] : [out];
+    const r = await new Promise<Run>((resolve, reject) => {
+      const key = openSync(keyFile, 'r');
+      const child = spawn('/usr/bin/script', ['-q', '/dev/null', ...cmd], { env, stdio: [key, 'pipe', 'pipe'] });
+      closeSync(key);
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => child.kill('SIGKILL'), 5000);
+      child.stdout?.on('data', (d) => (stdout += d));
+      child.stderr?.on('data', (d) => (stderr += d));
+      child.on('error', reject);
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        resolve({ code, stdout, stderr });
+      });
+    });
+    expect(r.stderr).toBe('');
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('p4');
+    expect(r.stdout).toContain('Press any key to close this window');
+  }, 10000);
 
   it('with CPP_STARTER_WAIT_FOR_DEBUGGER=<file> it writes its pid there and runs nothing until the debugger releases it', async () => {
     const { out, res } = await build('wait_debugger');

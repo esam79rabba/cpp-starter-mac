@@ -7,100 +7,31 @@
 #include <cstdio>
 #include <cstring>
 #include <cctype>
+#include <cstdarg>
 #include <tuple>
 #include <type_traits>
 
-#include <csignal>
-#include <cstdarg>
-#include <poll.h>
-#include <termios.h>
-#include <unistd.h>
+// Only C++ standard library headers here: this file reaches every student file, and POSIX or
+// macOS system headers would take names such as pause, read, link or ECHO away from them.
+// Anything that needs those headers lives in cpp_starter_compat.cpp, which is compiled and
+// linked into every program.
+
+extern "C" {
+// Set to 1 by the debugger (lldb `expression`) once it has attached; defined in the .cpp.
+extern volatile int cpp_starter_debugger_attached;
+bool cpp_starter_wait_for_debugger(void);
+bool cpp_starter_no_pause(void);
+int cpp_starter_read_key(bool echo);
+int cpp_starter_kbhit(void);
+int cpp_starter_register_exit_pause(void);
+}
 
 // ---- waiting for the debugger ----------------------------------------------------------
 
-// Apple's lldb-dap cannot start a program in the terminal itself on macOS (its launcher is a
-// system binary that no debugger may attach to), so "Start Debugging" runs the program in the
-// terminal with CPP_STARTER_WAIT_FOR_DEBUGGER=<file>. The program writes its pid to that file
-// once it is fully loaded and waiting here; only then does lldb attach (attaching earlier,
-// during dyld start-up under Rosetta, stops the program inside dyld). After attaching, the
-// extension's lldb commands set cpp_starter_debugger_attached = 1 while the program is still
-// stopped, so breakpoints are in place before it continues. Until then nothing may run: not
-// main, not a global initializer. This inline variable is defined before any user code in
-// every translation unit (the header is force-included), so C++17 orders its initialization
-// first. C linkage gives lldb a stable, unmangled name to assign.
-extern "C" {
-inline volatile int cpp_starter_debugger_attached = 0;
-}
-
-inline const bool cpp_starter_debugger_ready = [] {
-    const char* ready_file = std::getenv("CPP_STARTER_WAIT_FOR_DEBUGGER");
-    if (ready_file == nullptr || ready_file[0] == '\0') return true;
-    if (std::FILE* f = std::fopen(ready_file, "w")) {
-        std::fprintf(f, "%d\n", static_cast<int>(getpid()));
-        std::fclose(f);
-    }
-    unsetenv("CPP_STARTER_WAIT_FOR_DEBUGGER");  // not for programs this one starts
-    for (int i = 0; i < 6000; ++i) {  // 60 seconds
-        if (cpp_starter_debugger_attached != 0) return true;
-        usleep(10000);
-    }
-    std::fputs("The debugger did not start. Close this window and try again.\n", stderr);
-    std::_Exit(1);
-}();
-
-// ---- keypress helpers ------------------------------------------------------------------
-
-// CPP_STARTER_NO_PAUSE=1 disables every wait for a keypress (used by the tests).
-inline bool cpp_starter_no_pause() {
-    const char* v = std::getenv("CPP_STARTER_NO_PAUSE");
-    return v != nullptr && v[0] == '1';
-}
-
-// While stdin is in raw mode, Ctrl+C / kill / hangup must not leave the terminal broken:
-// the handler restores the saved settings, reinstates the previous handler and re-raises.
-struct cpp_starter_term_state {
-    termios saved;
-    struct sigaction previous[3];
-};
-inline cpp_starter_term_state cpp_starter_term;
-inline constexpr int cpp_starter_signals[3] = {SIGINT, SIGTERM, SIGHUP};
-
-inline void cpp_starter_restore_and_reraise(int sig) {
-    tcsetattr(STDIN_FILENO, TCSANOW, &cpp_starter_term.saved);
-    for (int i = 0; i < 3; ++i) {
-        if (cpp_starter_signals[i] == sig) sigaction(sig, &cpp_starter_term.previous[i], nullptr);
-    }
-    raise(sig);
-}
-
-// Reads one key from stdin. Raw (unbuffered) terminal mode is used only when stdin is a
-// terminal, and the terminal is always restored. Returns the key, or -1 on end of input.
-inline int cpp_starter_read_key(bool echo) {
-    bool raw = false;
-    if (isatty(STDIN_FILENO) && tcgetattr(STDIN_FILENO, &cpp_starter_term.saved) == 0) {
-        termios t = cpp_starter_term.saved;
-        t.c_lflag &= ~static_cast<tcflag_t>(ICANON);
-        if (!echo) t.c_lflag &= ~static_cast<tcflag_t>(ECHO);
-        t.c_cc[VMIN] = 1;
-        t.c_cc[VTIME] = 0;
-        struct sigaction sa;
-        std::memset(&sa, 0, sizeof sa);
-        sa.sa_handler = cpp_starter_restore_and_reraise;
-        sigemptyset(&sa.sa_mask);
-        for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &sa, &cpp_starter_term.previous[i]);
-        raw = tcsetattr(STDIN_FILENO, TCSANOW, &t) == 0;
-        if (!raw) {
-            for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &cpp_starter_term.previous[i], nullptr);
-        }
-    }
-    unsigned char c = 0;
-    ssize_t n = read(STDIN_FILENO, &c, 1);
-    if (raw) {
-        tcsetattr(STDIN_FILENO, TCSANOW, &cpp_starter_term.saved);
-        for (int i = 0; i < 3; ++i) sigaction(cpp_starter_signals[i], &cpp_starter_term.previous[i], nullptr);
-    }
-    return n == 1 ? c : -1;
-}
+// With CPP_STARTER_WAIT_FOR_DEBUGGER set, nothing may run before the debugger has attached:
+// not main, not a global initializer. This inline variable is defined before any user code in
+// every translation unit (the header is force-included), so C++17 initializes it first.
+inline const bool cpp_starter_debugger_ready = cpp_starter_wait_for_debugger();
 
 // ---- system("pause") / system("cls") ---------------------------------------------------
 
@@ -164,14 +95,8 @@ using ::cpp_starter_system;
 
 // ---- "Press any key to close this window" at exit --------------------------------------
 
-inline void cpp_starter_exit_pause() {
-    if (cpp_starter_no_pause() || !isatty(STDIN_FILENO)) return;
-    std::fputs("\nProgram exited.\nPress any key to close this window . . .", stdout);
-    std::fflush(stdout);
-    cpp_starter_read_key(false);
-}
-
-inline const int cpp_starter_exit_pause_registered = std::atexit(cpp_starter_exit_pause);
+// Registered before any user code runs, as the wait above; the handler is in the .cpp.
+inline const int cpp_starter_exit_pause_registered = cpp_starter_register_exit_pause();
 
 // ---- Microsoft "_s" functions ----------------------------------------------------------
 

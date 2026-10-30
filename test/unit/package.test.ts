@@ -25,6 +25,7 @@ describe('vsix contents', () => {
 
   it('ships the compat shim and the Visual Studio header stand-ins', () => {
     expect(files).toContain('shims/cpp_starter_compat.h');
+    expect(files).toContain('shims/cpp_starter_compat.cpp');
     for (const h of ['pch.h', 'stdafx.h', 'conio.h']) expect(files).toContain(`shims/include/${h}`);
   });
 });

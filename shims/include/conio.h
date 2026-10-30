@@ -10,8 +10,5 @@ inline int getche() { return _getche(); }
 
 // Non-zero when a key is waiting. In a terminal this becomes true after Enter is pressed,
 // because the terminal delivers input line by line.
-inline int _kbhit() {
-    pollfd p = {STDIN_FILENO, POLLIN, 0};
-    return poll(&p, 1, 0) > 0 && (p.revents & POLLIN) ? 1 : 0;
-}
+inline int _kbhit() { return cpp_starter_kbhit(); }
 inline int kbhit() { return _kbhit(); }

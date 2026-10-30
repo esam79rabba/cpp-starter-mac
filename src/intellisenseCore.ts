@@ -1,5 +1,6 @@
 import { lstat, readFile, rename, rm, writeFile } from 'fs/promises';
-import { dirname, join } from 'path';
+import { basename, dirname, join } from 'path';
+import { SHIM_SOURCE_NAME } from './compiler';
 import { isDeepStrictEqual } from 'util';
 import type { Toolchain } from './toolchain';
 import type { BuildTarget } from './projectModel';
@@ -39,14 +40,17 @@ export function isOurs(globalValue: unknown, recorded: unknown): boolean {
   return globalValue === undefined || (recorded !== undefined && isDeepStrictEqual(globalValue, recorded));
 }
 
-/** One entry per source: the build's flags minus `-o <out>` and the sources, plus `-c <file>`. */
+/**
+ * One entry per student source: the build's flags minus `-o <out>`, the sources and the
+ * shim's own .cpp (it gets no entry), plus `-c <file>`.
+ */
 export function compileCommandEntries(target: BuildTarget, args: string[], clang: string): CompileCommand[] {
   const sources = new Set(target.sources);
   const flags: string[] = [];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '-o') {
       i++;
-    } else if (!sources.has(args[i])) {
+    } else if (!sources.has(args[i]) && basename(args[i]) !== SHIM_SOURCE_NAME) {
       flags.push(args[i]);
     }
   }
