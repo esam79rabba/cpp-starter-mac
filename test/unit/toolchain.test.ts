@@ -9,6 +9,7 @@ const PATHS: Record<string, string> = {
   'xcrun -f clang++': '/usr/bin/clang++\n',
   'xcrun -f lldb-dap': '/Library/Developer/CommandLineTools/usr/bin/lldb-dap\n',
   'xcrun -f clangd': '/Library/Developer/CommandLineTools/usr/bin/clangd\n',
+  'xcrun --show-sdk-path': '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk\n',
 };
 
 function fakeExec(overrides: Record<string, ExecResult> = {}) {
@@ -31,6 +32,7 @@ describe('detectToolchain', () => {
       clang: '/usr/bin/clang++',
       lldbDap: '/Library/Developer/CommandLineTools/usr/bin/lldb-dap',
       clangd: '/Library/Developer/CommandLineTools/usr/bin/clangd',
+      sdk: '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk',
     });
   });
 
@@ -42,6 +44,11 @@ describe('detectToolchain', () => {
 
   it('returns undefined when lldb-dap is missing', async () => {
     const { exec } = fakeExec({ 'xcrun -f lldb-dap': fail(1) });
+    expect(await detectToolchain(exec)).toBeUndefined();
+  });
+
+  it('returns undefined when --show-sdk-path fails', async () => {
+    const { exec } = fakeExec({ 'xcrun --show-sdk-path': fail(1) });
     expect(await detectToolchain(exec)).toBeUndefined();
   });
 
@@ -72,7 +79,7 @@ describe('installToolchain', () => {
     expect(calls[0]).toBe('xcode-select --install');
     expect(result).toEqual({
       kind: 'installed',
-      toolchain: { clang: '/bin/tool', lldbDap: '/bin/tool', clangd: '/bin/tool' },
+      toolchain: { clang: '/bin/tool', lldbDap: '/bin/tool', clangd: '/bin/tool', sdk: '/bin/tool' },
     });
     expect(sleep).toHaveBeenCalledTimes(2);
     expect(sleep).toHaveBeenNthCalledWith(1, 7);
@@ -134,7 +141,7 @@ describe('cachedWhenFound', () => {
   });
 
   it('caches a found result', async () => {
-    const tc = { clang: 'a', lldbDap: 'b', clangd: 'c' };
+    const tc = { clang: 'a', lldbDap: 'b', clangd: 'c', sdk: 'd' };
     const run = vi.fn(async () => tc);
     const get = cachedWhenFound(run);
     expect(await get()).toBe(tc);
@@ -167,7 +174,7 @@ describe('cachedWhenFound', () => {
   });
 
   it('fresh drops the cached value but joins a call already in flight', async () => {
-    const tc = { clang: 'a', lldbDap: 'b', clangd: 'c' };
+    const tc = { clang: 'a', lldbDap: 'b', clangd: 'c', sdk: 'd' };
     const first = cachedWhenFound(vi.fn(async () => tc));
     await first();
     let release!: () => void;

@@ -4,6 +4,8 @@ export interface Toolchain {
   clang: string;
   lldbDap: string;
   clangd: string;
+  /** macOS SDK root (`xcrun --show-sdk-path`); clang++ run directly needs it as -isysroot. */
+  sdk: string;
 }
 
 const DEFAULT_POLL_MS = 5000;
@@ -23,7 +25,10 @@ async function detect(exec: ExecFn): Promise<Toolchain | undefined> {
   const lldbDap = await findTool(exec, 'lldb-dap');
   const clangd = await findTool(exec, 'clangd');
   if (!clang || !lldbDap || !clangd) return undefined;
-  return { clang, lldbDap, clangd };
+  const sdkResult = await exec('xcrun', ['--show-sdk-path']);
+  const sdk = sdkResult.stdout.trim();
+  if (sdkResult.code !== 0 || sdk === '') return undefined;
+  return { clang, lldbDap, clangd, sdk };
 }
 
 /** Returns the tool paths, or undefined if Apple's Command Line Tools are not fully installed. */
