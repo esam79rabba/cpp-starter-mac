@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn } from 'child_process';
-import { mkdtemp, rm } from 'fs/promises';
+import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import { realExec } from '../../src/exec';
@@ -122,6 +122,39 @@ describe.each(archs)('compat shims (%s)', (arch) => {
   it('pragma warning and _s string functions compile without warnings', async () => {
     const r = await buildAndRun('pragma');
     expect(r.stdout).toContain('hi!');
+  });
+
+  it('with CPP_STARTER_WAIT_FOR_DEBUGGER=<file> it writes its pid there and runs nothing until a debugger attaches', async () => {
+    const { out, res } = await build('wait_debugger');
+    expect(res.code).toBe(0);
+    const ready = path.join(dir, `ready-${arch}`);
+    const env = { CPP_STARTER_NO_PAUSE: '1', CPP_STARTER_WAIT_FOR_DEBUGGER: ready };
+    const [cmd, args] = arch === 'x86_64' ? ['arch', ['-x86_64', out]] : [out, []];
+    const child = spawn(cmd, args, { env });
+    let stdout = '';
+    child.stdout.on('data', (d) => (stdout += d));
+    const exited = new Promise<number | null>((resolve) => child.on('close', resolve));
+
+    let pid = '';
+    for (let i = 0; i < 100 && pid === ''; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      pid = await readFile(ready, 'utf8').catch(() => '');
+    }
+    // `arch` execs the program, so the child's pid is the program's pid.
+    expect(pid.trim()).toBe(String(child.pid));
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(stdout).toBe('');
+
+    const lldb = await realExec('xcrun', ['lldb', '--batch', '-o', `process attach --pid ${child.pid}`, '-o', 'continue'], {
+      timeoutMs: 20000,
+    });
+    expect(lldb.stdout + lldb.stderr).not.toMatch(/attach failed/);
+    expect(await exited).toBe(0);
+    expect(stdout).toBe('init\nmain\n');
+  }, 30000);
+
+  it('without CPP_STARTER_WAIT_FOR_DEBUGGER the program runs at once', async () => {
+    expect((await buildAndRun('wait_debugger')).stdout).toBe('init\nmain\n');
   });
 
   it('exit pause does not hang when stdin is not a TTY', async () => {

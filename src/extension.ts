@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { registerDebugAdapter } from './debugAdapter';
+import { registerRunner } from './runner';
 import { ensureToolchain, recheckToolchain } from './toolchainUi';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -10,6 +12,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('cppStarter.checkTools', () => recheckToolchain()),
   );
+  registerDebugAdapter(context, ensureToolchain);
+  registerRunner(context);
   void ensureToolchain();
 }
 

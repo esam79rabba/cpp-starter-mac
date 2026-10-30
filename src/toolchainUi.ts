@@ -5,6 +5,12 @@ import { cachedWhenFound, detectToolchain, installToolchain, type Toolchain } fr
 let output: vscode.OutputChannel | undefined;
 let announcedReady = false;
 
+/** The extension's single "C++ Starter" output channel, created on first use. */
+export function getOutputChannel(): vscode.OutputChannel {
+  output ??= vscode.window.createOutputChannel('C++ Starter');
+  return output;
+}
+
 async function run(): Promise<Toolchain | undefined> {
   const found = await detectToolchain(realExec);
   if (found) return found;
@@ -48,8 +54,7 @@ const lookup = cachedWhenFound(run);
 
 function reportError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
-  output ??= vscode.window.createOutputChannel('C++ Starter');
-  output.appendLine(`Toolchain check failed: ${error instanceof Error ? (error.stack ?? message) : message}`);
+  getOutputChannel().appendLine(`Toolchain check failed: ${error instanceof Error ? (error.stack ?? message) : message}`);
   void vscode.window.showErrorMessage('Something went wrong while checking the C++ tools: ' + message);
 }
 

@@ -9,7 +9,8 @@ import {
 async function main(): Promise<void> {
   const extensionDevelopmentPath = path.resolve(__dirname, '../../../');
   const extensionTestsPath = path.resolve(__dirname, './index');
-  const workspaceFile = path.resolve(extensionDevelopmentPath, 'test/fixtures/hello/main.cpp');
+  // The fixtures folder is the workspace so tests can open files from every fixture project.
+  const workspaceFolder = path.resolve(extensionDevelopmentPath, 'test/fixtures');
 
   const vscodeExecutablePath = await downloadAndUnzipVSCode();
   const [cli, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
     vscodeExecutablePath,
     extensionDevelopmentPath,
     extensionTestsPath,
-    launchArgs: [workspaceFile],
+    launchArgs: [workspaceFolder],
     extensionTestsEnv: { CPP_STARTER_NO_PAUSE: '1' },
   });
 }
