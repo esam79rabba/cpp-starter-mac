@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ExecFn, ExecResult } from '../../src/exec';
-import { detectToolchain, installToolchain } from '../../src/toolchain';
+import { cachedWhenFound, detectToolchain, installToolchain } from '../../src/toolchain';
 
 const ok = (stdout = ''): ExecResult => ({ code: 0, stdout, stderr: '' });
 const fail = (code: number): ExecResult => ({ code, stdout: '', stderr: '' });
@@ -80,5 +80,50 @@ describe('installToolchain', () => {
     const exec: ExecFn = async () => fail(1);
     const result = await installToolchain(exec, { timeoutMs: 10, pollMs: 5 });
     expect(result).toBeUndefined();
+  });
+});
+
+describe('cachedWhenFound', () => {
+  it('does not cache an undefined result, so the next call runs again', async () => {
+    const run = vi.fn(async () => undefined);
+    const get = cachedWhenFound(run);
+    await get();
+    await get();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('caches a found result', async () => {
+    const tc = { clang: 'a', lldbDap: 'b', clangd: 'c' };
+    const run = vi.fn(async () => tc);
+    const get = cachedWhenFound(run);
+    expect(await get()).toBe(tc);
+    expect(await get()).toBe(tc);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one in-flight call between concurrent callers', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const run = vi.fn(async () => {
+      await gate;
+      return undefined;
+    });
+    const get = cachedWhenFound(run);
+    const [p1, p2] = [get(), get()];
+    release();
+    await Promise.all([p1, p2]);
+    expect(run).toHaveBeenCalledTimes(1);
+    await get();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a rejection as undefined and allows a retry', async () => {
+    const run = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const get = cachedWhenFound(run);
+    expect(await get()).toBeUndefined();
+    await get();
+    expect(run).toHaveBeenCalledTimes(2);
   });
 });

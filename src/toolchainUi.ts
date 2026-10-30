@@ -1,9 +1,6 @@
 import * as vscode from 'vscode';
 import { realExec } from './exec';
-import { detectToolchain, installToolchain, type Toolchain } from './toolchain';
-
-let cached: Toolchain | undefined;
-let inFlight: Promise<Toolchain | undefined> | undefined;
+import { cachedWhenFound, detectToolchain, installToolchain, type Toolchain } from './toolchain';
 
 async function run(): Promise<Toolchain | undefined> {
   const found = await detectToolchain(realExec);
@@ -33,23 +30,15 @@ async function run(): Promise<Toolchain | undefined> {
   return installed;
 }
 
-/** Finds the C++ tools, offering to install them if missing. Never throws. */
+let lookup = cachedWhenFound(run);
+
+/** Finds the C++ tools, offering to install them if missing. Only a found result is cached. Never throws. */
 export function ensureToolchain(): Promise<Toolchain | undefined> {
-  if (cached) return Promise.resolve(cached);
-  inFlight ??= run()
-    .catch(() => undefined)
-    .then((result) => {
-      cached = result;
-      return result;
-    })
-    .finally(() => {
-      inFlight = undefined;
-    });
-  return inFlight;
+  return lookup();
 }
 
-/** Forgets the cached result so the next check looks at the machine again. */
+/** Forgets any cached result so the next check looks at the machine again. */
 export function recheckToolchain(): Promise<Toolchain | undefined> {
-  cached = undefined;
-  return ensureToolchain();
+  lookup = cachedWhenFound(run);
+  return lookup();
 }

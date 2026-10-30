@@ -61,3 +61,25 @@ export async function installToolchain(
     await sleep(pollMs);
   }
 }
+
+/**
+ * Wraps an async lookup so only a found result is remembered. An undefined (or failed)
+ * result is retried on the next call, and concurrent callers share one in-flight run.
+ */
+export function cachedWhenFound<T>(run: () => Promise<T | undefined>): () => Promise<T | undefined> {
+  let cached: T | undefined;
+  let inFlight: Promise<T | undefined> | undefined;
+  return () => {
+    if (cached !== undefined) return Promise.resolve(cached);
+    inFlight ??= run()
+      .catch(() => undefined)
+      .then((result) => {
+        cached = result;
+        return result;
+      })
+      .finally(() => {
+        inFlight = undefined;
+      });
+    return inFlight;
+  };
+}
