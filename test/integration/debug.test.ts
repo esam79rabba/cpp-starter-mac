@@ -74,7 +74,7 @@ suite('build and debug', function () {
   this.timeout(120000);
 
   suiteSetup(async () => {
-    const ext = vscode.extensions.getExtension('cpp-starter.cpp-starter-mac');
+    const ext = vscode.extensions.getExtension('EsamRabba.cpp-starter-mac');
     await ext?.activate();
     await cleanUp();
   });

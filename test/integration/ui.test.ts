@@ -7,7 +7,7 @@ suite('ui', () => {
 
   test('opening a C++ file records that the fn-key tip was shown', async function () {
     this.timeout(60000);
-    await vscode.extensions.getExtension('cpp-starter.cpp-starter-mac')?.activate();
+    await vscode.extensions.getExtension('EsamRabba.cpp-starter-mac')?.activate();
     await openFile(fixture('hello', 'main.cpp'));
 
     let shown: unknown;

@@ -9,7 +9,7 @@ import { createProject } from '../../src/projectTemplate';
 suite('start page', function () {
   this.timeout(120000);
   suiteSetup(async () => {
-    await vscode.extensions.getExtension('cpp-starter.cpp-starter-mac')?.activate();
+    await vscode.extensions.getExtension('EsamRabba.cpp-starter-mac')?.activate();
   });
   teardown(cleanUp);
 

@@ -51,6 +51,6 @@ Tested on Apple Silicon. Intel Macs should work but are not yet tested on real h
 ## For maintainers
 
 - `npm run test:unit` and `npm run test:integration` run the tests. `npm run package` builds `cpp-starter-mac-<version>.vsix`.
-- The `publisher` in `package.json` is a placeholder (`cpp-starter`). Change it to your own Marketplace publisher id before publishing.
+- The Marketplace publisher is `EsamRabba` (`package.json`), so the extension id is `EsamRabba.cpp-starter-mac`.
 - Publish with `npx vsce login <publisher>` and then `npx vsce publish`.
 - `npm run icon` regenerates `media/icon.png` from `media/icon.svg`.
