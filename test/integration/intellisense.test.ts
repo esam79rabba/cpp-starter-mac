@@ -43,7 +43,7 @@ const COMPILE_COMMANDS = fixture('solution', 'compile_commands.json');
 suite('intellisense', () => {
   suiteSetup(async function () {
     this.timeout(60000);
-    await vscode.extensions.getExtension('cpp-starter.cpp-starter-mac')?.activate();
+    await vscode.extensions.getExtension('EsamRabba.cpp-starter-mac')?.activate();
     await vscode.extensions.getExtension('llvm-vs-code-extensions.vscode-clangd')?.activate();
     // Activation configures clangd without blocking; wait for the global setting to be ours.
     await until('clangd.path to be configured', () =>

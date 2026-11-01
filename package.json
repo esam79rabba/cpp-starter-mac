@@ -3,7 +3,7 @@
   "displayName": "C++ Starter for Mac",
   "description": "Build, run and debug C++ on a Mac like in Visual Studio: F5 to run, breakpoints, plain-English errors. Uses Apple clang++ and lldb-dap.",
   "version": "0.0.1",
-  "publisher": "cpp-starter",
+  "publisher": "EsamRabba",
   "license": "MIT",
   "repository": {
     "type": "git",
