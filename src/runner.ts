@@ -183,8 +183,9 @@ export class Runner {
       cwd: target.dir,
       args: [],
       // Attach, then release the program's wait while it is still stopped: VS Code sets the
-      // breakpoints before configurationDone lets it run.
-      launchCommands: [`process attach --pid ${pid}`, 'expression -- cpp_starter_debugger_attached = 1'],
+      // breakpoints before configurationDone lets it run. The '?' prefix keeps lldb-dap quiet unless a
+      // command fails, so students don't see the attach stop report and disassembly.
+      launchCommands: [`?process attach --pid ${pid}`, '?expression -- cpp_starter_debugger_attached = 1'],
     };
     let started = false;
     try {
