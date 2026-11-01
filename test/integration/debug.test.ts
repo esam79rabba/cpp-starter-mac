@@ -84,6 +84,26 @@ suite('build and debug', function () {
     await debugAndExpectStop(HELLO, HELLO_COUT_LINE);
   });
 
+  test('the attach handshake prints nothing to the Debug Console', async () => {
+    const printed: string[] = [];
+    const tracker = vscode.debug.registerDebugAdapterTrackerFactory('cppstarter', {
+      createDebugAdapterTracker: () => ({
+        onDidSendMessage(message: { type?: string; event?: string; body?: { output?: string } }) {
+          if (message.type === 'event' && message.event === 'output') printed.push(message.body?.output ?? '');
+        },
+      }),
+    });
+    try {
+      await debugAndExpectStop(HELLO, HELLO_COUT_LINE);
+    } finally {
+      tracker.dispose();
+    }
+    const console = printed.join('');
+    for (const noise of ['launchCommands', 'process attach', 'SIGSTOP', 'cpp_starter_debugger_attached']) {
+      assert.ok(!console.includes(noise), `Debug Console shows "${noise}":\n${console}`);
+    }
+  });
+
   test('F5 from the terminal (VS Code debug start, no launch.json) builds and stops at the breakpoint', async () => {
     await openFile(HELLO);
     addBreakpoint(HELLO, HELLO_COUT_LINE);
